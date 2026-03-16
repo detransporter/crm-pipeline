@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DAVID — PIPELINE</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0c; --surface:#111116; --surface2:#1a1a22; --border:#2a2a35;
+    --accent:#e8ff47; --accent2:#47ffe8; --red:#ff4757; --orange:#ff9f47;
+    --green:#47ff99; --text:#e8e8f0; --muted:#6b6b80;
+    --warm:#c9a800; --cold:#2472c8; --stalled:#ff4757; --active:#1a9e5c;
+  }
+  :root.light {
+    --bg:#f8f8f5; --surface:#ffffff; --surface2:#f0f0ec; --border:#e0e0d8;
+    --accent:#b8a800; --accent2:#0891b2; --red:#dc2626; --orange:#ea580c;
+    --green:#16a34a; --text:#1a1a1a; --muted:#6b7280;
+    --warm:#92700a; --cold:#1d4ed8; --stalled:#dc2626; --active:#15803d;
+  }
+  .theme-toggle {
+    font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px;
+    text-transform:uppercase; padding:7px 13px; background:var(--surface2);
+    color:var(--muted); border:1px solid var(--border); border-radius:4px;
+    cursor:pointer; transition:all .2s; display:flex; align-items:center; gap:6px;
+  }
+  .theme-toggle:hover { border-color:var(--accent2); color:var(--accent2); }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;
+    background-image:radial-gradient(ellipse at 0% 0%,rgba(232,255,71,.04) 0%,transparent 50%),
+    radial-gradient(ellipse at 100% 100%,rgba(71,255,232,.03) 0%,transparent 50%);}
+
+  header{border-bottom:1px solid var(--border);padding:20px 24px;display:flex;align-items:baseline;
+    justify-content:space-between;position:sticky;top:0;background:rgba(10,10,12,.96);
+    backdrop-filter:blur(12px);z-index:100;}
+  .header-left{display:flex;align-items:baseline;gap:16px;}
+  header h1{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--accent);}
+  header span{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;}
+  .hdr-right{display:flex;gap:10px;align-items:center;}
+
+  .add-btn{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;
+    padding:8px 16px;background:var(--accent);color:#0a0a0c;border:none;border-radius:4px;
+    cursor:pointer;font-weight:600;transition:all .2s;}
+  .add-btn:hover{filter:brightness(1.1);}
+  .sync-btn{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;
+    padding:8px 14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);
+    border-radius:4px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;}
+  .sync-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+  .sync-btn.syncing{color:var(--accent2);border-color:var(--accent2);}
+
+  .sync-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;
+    font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;
+    display:flex;align-items:center;gap:8px;}
+  .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+  .sync-dot.ok{background:var(--green);}
+  .sync-dot.err{background:var(--red);}
+  .sync-dot.loading{background:var(--accent2);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .stats-bar{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;}
+  .stats-bar::-webkit-scrollbar{display:none;}
+  .stat-item{flex:1;min-width:90px;padding:14px 16px;border-right:1px solid var(--border);text-align:center;}
+  .stat-num{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;color:var(--text);}
+  .stat-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;
+    text-transform:uppercase;margin-top:3px;}
+
+  .filter-bar{display:flex;gap:8px;padding:14px 24px;border-bottom:1px solid var(--border);
+    overflow-x:auto;scrollbar-width:none;}
+  .filter-bar::-webkit-scrollbar{display:none;}
+  .filter-btn{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;
+    padding:5px 14px;background:var(--surface);border:1px solid var(--border);color:var(--muted);
+    border-radius:20px;cursor:pointer;white-space:nowrap;transition:all .2s;}
+  .filter-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(232,255,71,.05);}
+
+  .view-toggle{display:flex;gap:4px;}
+  .view-btn{padding:6px 10px;background:var(--surface);border:1px solid var(--border);color:var(--muted);
+    border-radius:4px;cursor:pointer;font-size:14px;transition:all .2s;}
+  .view-btn.active{border-color:var(--accent);color:var(--accent);}
+
+  .container{padding:20px 24px;max-width:1100px;margin:0 auto;}
+
+  .kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+  @media(max-width:768px){.kanban{grid-template-columns:1fr 1fr;}}
+  @media(max-width:480px){.kanban{grid-template-columns:1fr;}}
+
+  .kanban-col{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .kanban-header{padding:11px 14px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--border);}
+  .kanban-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;}
+  .kanban-count{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--muted);}
+  .kanban-cards{padding:10px;display:flex;flex-direction:column;gap:8px;min-height:80px;}
+
+  .contact-card{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:13px;
+    cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+  .contact-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+  .contact-card.warm::before{background:var(--warm);}
+  .contact-card.cold::before{background:var(--cold);}
+  .contact-card.active::before{background:var(--active);}
+  .contact-card.stalled::before{background:var(--stalled);}
+  .contact-card.kontaktad::before{background:var(--accent2);}
+  .contact-card:hover{border-color:var(--muted);transform:translateY(-1px);}
+
+  .card-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;}
+  .card-company{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);
+    letter-spacing:1px;margin-bottom:8px;}
+  .card-offer{font-size:11px;color:var(--text);opacity:.7;margin-bottom:9px;line-height:1.4;}
+  .card-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+
+  .potential-badge{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;
+    text-transform:uppercase;padding:2px 8px;border-radius:10px;}
+  .potential-badge.high{background:rgba(71,255,153,.1);color:var(--green);}
+  .potential-badge.medium{background:rgba(255,159,71,.1);color:var(--orange);}
+  .potential-badge.low{background:rgba(107,107,128,.1);color:var(--muted);}
+
+  .card-action{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);
+    text-align:right;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+
+  .list-view{display:none;flex-direction:column;gap:8px;}
+  .list-view.active{display:flex;}
+  .kanban.hidden{display:none;}
+
+  .list-row{background:var(--surface);border:1px solid var(--border);border-radius:6px;
+    padding:14px 18px;display:grid;grid-template-columns:180px 140px 1fr 90px 110px;
+    gap:14px;align-items:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+  .list-row::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+  .list-row.warm::before{background:var(--warm);}
+  .list-row.cold::before{background:var(--cold);}
+  .list-row.active::before{background:var(--active);}
+  .list-row.stalled::before{background:var(--stalled);}
+  .list-row.kontaktad::before{background:var(--accent2);}
+  .list-row:hover{border-color:var(--muted);}
+  @media(max-width:600px){.list-row{grid-template-columns:1fr;gap:4px;}}
+
+  .row-name{font-weight:600;font-size:13px;color:var(--text);}
+  .row-company{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+  .row-offer{font-size:12px;color:var(--text);opacity:.7;}
+  .row-action{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+
+  .status-pill{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;
+    text-transform:uppercase;padding:3px 10px;border-radius:10px;display:inline-block;}
+  .status-pill.warm{background:rgba(232,255,71,.1);color:var(--warm);}
+  .status-pill.cold{background:rgba(71,153,255,.1);color:var(--cold);}
+  .status-pill.active{background:rgba(71,255,153,.1);color:var(--active);}
+  .status-pill.stalled{background:rgba(255,71,87,.1);color:var(--stalled);}
+  .status-pill.kontaktad{background:rgba(71,255,232,.1);color:var(--accent2);}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+    z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    width:100%;max-width:540px;max-height:90vh;overflow-y:auto;}
+  .modal-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;
+    justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--surface);}
+  .modal-title{font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:2px;color:var(--accent);}
+  .modal-close{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;}
+  .modal-close:hover{color:var(--text);}
+  .modal-body{padding:22px;}
+  .form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-group label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);
+    letter-spacing:2px;text-transform:uppercase;}
+  .form-group input,.form-group select,.form-group textarea{background:var(--bg);
+    border:1px solid var(--border);border-radius:5px;color:var(--text);
+    font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 11px;outline:none;
+    transition:border-color .2s;width:100%;}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent);}
+  .form-group textarea{resize:vertical;min-height:70px;}
+  .form-group select option{background:var(--surface2);}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .modal-footer{padding:14px 22px;border-top:1px solid var(--border);
+    display:flex;gap:8px;justify-content:flex-end;}
+  .btn-primary{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;
+    text-transform:uppercase;padding:10px 18px;background:var(--accent);color:#0a0a0c;
+    border:none;border-radius:4px;cursor:pointer;font-weight:600;}
+  .btn-secondary{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;
+    text-transform:uppercase;padding:10px 18px;background:var(--surface2);color:var(--text);
+    border:1px solid var(--border);border-radius:4px;cursor:pointer;}
+  .btn-danger{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;
+    text-transform:uppercase;padding:10px 16px;background:rgba(255,71,87,.1);color:var(--red);
+    border:1px solid rgba(255,71,87,.3);border-radius:4px;cursor:pointer;margin-right:auto;}
+
+  /* DETAIL */
+  .detail-section{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+  .detail-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .detail-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);
+    letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;}
+  .detail-value{font-size:13px;color:var(--text);line-height:1.5;}
+  .detail-action{font-size:13px;color:var(--accent2);line-height:1.5;}
+  .detail-blocker{font-size:13px;color:var(--red);line-height:1.5;}
+
+  .ob-note{background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+    padding:12px;margin-top:12px;}
+  .ob-note-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--accent2);
+    letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+  .ob-note-text{font-size:12px;color:var(--text);opacity:.8;line-height:1.5;
+    max-height:120px;overflow-y:auto;}
+
+  .empty-col{font-family:'DM Mono',monospace;font-size:10px;color:var(--border);
+    letter-spacing:1px;text-align:center;padding:20px 0;}
+
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--accent);color:#0a0a0c;
+    font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;padding:11px 18px;
+    border-radius:5px;transform:translateY(80px);opacity:0;transition:all .3s;z-index:1000;}
+  .toast.show{transform:translateY(0);opacity:1;}
+
+  .ob-source-badge{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;
+    text-transform:uppercase;padding:2px 6px;border-radius:3px;
+    background:rgba(71,255,232,.1);color:var(--accent2);margin-left:6px;}
+
+  .card-date{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);
+    letter-spacing:1px;margin-bottom:6px;}
+  .card-date.fresh{color:var(--active);}
+  .card-date.stale{color:var(--orange);}
+
+  .overdue-badge{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;
+    text-transform:uppercase;padding:2px 6px;border-radius:3px;
+    background:rgba(255,71,87,.15);color:var(--red);white-space:nowrap;}
+
+  .contact-card.overdue{border-color:var(--red);box-shadow:0 0 0 1px rgba(255,71,87,.25);}
+  .list-row.overdue{border-color:var(--red);}
+
+  .email-btn{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;
+    text-transform:uppercase;padding:3px 8px;border-radius:3px;border:1px solid var(--border);
+    background:var(--surface2);color:var(--muted);cursor:pointer;text-decoration:none;
+    display:inline-flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;}
+  .email-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+
+  .contact-card[draggable]{cursor:grab;}
+  .contact-card[draggable]:active{cursor:grabbing;}
+  .contact-card.dragging{opacity:.35;transform:scale(.98);}
+  .kanban-col.drag-over{border-color:var(--accent);background:var(--surface2);}
+  .kanban-col.drag-over .kanban-cards{background:rgba(232,255,71,.03);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>PIPELINE</h1>
+    <span>SCM International · David</span>
+  </div>
+  <div class="hdr-right">
+    <div class="view-toggle">
+      <button class="view-btn active" id="btnKanban" onclick="setView('kanban')" title="Kanban">⊞</button>
+      <button class="view-btn" id="btnList" onclick="setView('list')" title="Lista">☰</button>
+    </div>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Växla tema">☀ Ljust</button>
+    <button class="sync-btn" id="syncBtn" onclick="syncFromOpenBrain()">⟳ Synka Open Brain</button>
+    <button class="add-btn" onclick="openAddModal()">+ Lägg till</button>
+  </div>
+</header>
+
+<div class="sync-bar">
+  <div class="sync-dot" id="syncDot"></div>
+  <span id="syncStatus">Klicka "Synka Open Brain" för att hämta kontakter</span>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="setFilter('all',this)">Alla</button>
+  <button class="filter-btn" onclick="setFilter('active',this)">Aktiv</button>
+  <button class="filter-btn" onclick="setFilter('warm',this)">Warm</button>
+  <button class="filter-btn" onclick="setFilter('cold',this)">Cold</button>
+  <button class="filter-btn" onclick="setFilter('stalled',this)">Stalled</button>
+  <button class="filter-btn" onclick="setFilter('kontaktad',this)">Kontaktad</button>
+  <button class="filter-btn" onclick="setFilter('high',this)">Hög potential</button>
+</div>
+
+<div class="container">
+  <div class="kanban" id="kanbanView"></div>
+  <div class="list-view" id="listView"></div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">NY KONTAKT</span>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Namn</label><input type="text" id="f-name" placeholder="Erik Fahlén"></div>
+        <div class="form-group"><label>Företag</label><input type="text" id="f-company" placeholder="AFRY"></div>
+      </div>
+      <div class="form-group"><label>Erbjudande</label><input type="text" id="f-offer" placeholder="Lageroptimering, SupplyMetrics, CO2..."></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status">
+            <option value="cold">Cold</option>
+            <option value="warm" selected>Warm</option>
+            <option value="active">Aktiv</option>
+            <option value="kontaktad">Kontaktad</option>
+            <option value="stalled">Stalled</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Potential</label>
+          <select id="f-potential">
+            <option value="high" selected>Hög</option>
+            <option value="medium">Medium</option>
+            <option value="low">Låg</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>E-post</label><input type="email" id="f-email" placeholder="namn@foretag.se"></div>
+        <div class="form-group"><label>Relation</label><input type="text" id="f-relation" placeholder="Personlig, professionell..."></div>
+      </div>
+      <div class="form-group"><label>Anteckningar</label><textarea id="f-note" placeholder="Vad hände senast? Vad sades?"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Senaste kontakt</label><input type="date" id="f-lastContact"></div>
+        <div class="form-group"><label>Nästa åtgärd senast</label><input type="date" id="f-nextActionBy"></div>
+      </div>
+      <div class="form-group"><label>Nästa åtgärd</label><input type="text" id="f-action" placeholder="Höra av mig, boka möte..."></div>
+      <div class="form-group"><label>Blocker</label><input type="text" id="f-blocker" placeholder="Budget, timing, prioritet..."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="deleteBtn" onclick="deleteContact()" style="display:none">Ta bort</button>
+      <button class="btn-secondary" onclick="closeModal()">Avbryt</button>
+      <button class="btn-primary" onclick="saveContact()">Spara</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <span class="modal-title" id="detailName"></span>
+        <span class="ob-source-badge" id="detailSource" style="display:none">Open Brain</span>
+      </div>
+      <button class="modal-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeDetail()">Stäng</button>
+      <button class="btn-primary" onclick="editFromDetail()">Redigera</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATE HELPERS ─────────────────────────────────────────────
+function daysSince(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.floor((now - d) / 86400000);
+}
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  return daysSince(dateStr) > 0;
+}
+function fmtDaysSince(n) {
+  if (n === null) return null;
+  if (n === 0) return 'Idag';
+  if (n === 1) return '1 dag sedan';
+  return `${n} dagar sedan`;
+}
+
+// ── DRAG & DROP ───────────────────────────────────────────────
+let dragId = null;
+
+function onDragStart(e, id) {
+  dragId = String(id);
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => {
+    const el = document.querySelector(`[data-id="${id}"]`);
+    if (el) el.classList.add('dragging');
+  }, 0);
+}
+
+function onDragEnd(e) {
+  document.querySelectorAll('.contact-card.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.kanban-col.drag-over').forEach(el => el.classList.remove('drag-over'));
+  dragId = null;
+}
+
+function onDragOver(e, col) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+}
+
+function onDrop(e, status) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragId) return;
+  const data = getData();
+  const idx = data.findIndex(x => String(x.id) === dragId);
+  if (idx >= 0 && data[idx].status !== status) {
+    data[idx].status = status;
+    saveData(data);
+    render();
+    const labels = {cold:'Cold',warm:'Warm',active:'Aktiv',stalled:'Stalled'};
+    showToast(`Flyttad → ${labels[status]||status}`);
+  }
+  dragId = null;
+}
+
+// ── CONFIG ────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://kxwvshsmuigwjsvdtwpp.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4d3ZzaHNtdWlnd2pzdmR0d3BwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MjI3NjcsImV4cCI6MjA4ODA5ODc2N30.czV74PRtPfq8pHz7crkMCddrDXksTydQWQjeRD9MWCc';
+const OB_PROXY = '/api/ob-proxy';
+
+// ── STORAGE ───────────────────────────────────────────────────
+function getData(){ return JSON.parse(localStorage.getItem('davidCRM_v2')||'[]'); }
+function saveData(d){ localStorage.setItem('davidCRM_v2',JSON.stringify(d)); }
+
+// ── STATE ─────────────────────────────────────────────────────
+let currentFilter='all';
+let currentView='kanban';
+let editingId=null;
+let detailId=null;
+
+// ── PARSE Open Brain thought → CRM contact ────────────────────
+function parseOBThought(thought) {
+  const content = thought.content || thought.text || '';
+  if (!content.includes('PROFESSIONAL CRM') && !content.includes('CRM')) return null;
+
+  // Extract name and company from "Name, Company:" or "Name (Company)"
+  const nameMatch = content.match(/CRM[^—]*—\s*([^,:(]+?)(?:\s*[,(]|:)/);
+  const companyMatch = content.match(/(?:,\s*|[(])([^):,\n]+?)(?:[):,]|$)/);
+
+  let name = 'Okänd kontakt';
+  let company = '';
+
+  if (nameMatch) {
+    name = nameMatch[1].trim();
+    // Clean up common prefixes
+    name = name.replace(/^(Ann |Erik |Ted |CFO|Kontakt på?\s*)/,'').trim() || name;
+  }
+
+  // Better name extraction
+  const betterName = content.match(/PROFESSIONAL CRM\s*—\s*([^\n:,(]+?)(?:\s*[,(:]|\n)/);
+  if (betterName) name = betterName[1].trim();
+
+  const betterCompany = content.match(/(?:hos |på |,\s*)([A-ZÅÄÖ][^\n,:.]+?)(?:\s*[:(,]|\n|$)/);
+  if (betterCompany && betterCompany[1].length < 50) company = betterCompany[1].trim();
+
+  // Extract status
+  let status = 'warm';
+  if (/status:\s*stalled/i.test(content)) status = 'stalled';
+  else if (/status:\s*cold/i.test(content)) status = 'cold';
+  else if (/status:\s*aktiv/i.test(content)) status = 'active';
+  else if (/status:\s*warm/i.test(content) || /kontaktad/i.test(content)) {
+    status = content.toLowerCase().includes('inväntar svar') ? 'kontaktad' : 'warm';
+  }
+
+  // Extract next action
+  const actionMatch = content.match(/next action:\s*([^\n.]+)/i) ||
+                      content.match(/nästa åtgärd:\s*([^\n.]+)/i);
+  const action = actionMatch ? actionMatch[1].trim() : '';
+
+  // Extract blocker
+  const blockerMatch = content.match(/blocker:\s*([^\n.]+)/i);
+  const blocker = blockerMatch ? blockerMatch[1].trim() : '';
+
+  // Extract offer
+  const offerMatch = content.match(/erbjudande:\s*([^\n.]+)/i);
+  const offer = offerMatch ? offerMatch[1].trim() : '';
+
+  // Potential
+  const potential = /potential:\s*high/i.test(content) ? 'high' :
+                    /potential:\s*medium/i.test(content) ? 'medium' : 'high';
+
+  return {
+    id: 'ob_' + (thought.id || Date.now()),
+    name,
+    company,
+    offer,
+    status,
+    potential,
+    relation: '',
+    note: content.slice(0, 300),
+    action,
+    blocker,
+    fromOB: true,
+    obContent: content,
+    created: thought.created_at || new Date().toISOString()
+  };
+}
+
+// ── SYNC FROM OPEN BRAIN ──────────────────────────────────────
+async function syncFromOpenBrain() {
+  const btn = document.getElementById('syncBtn');
+  const dot = document.getElementById('syncDot');
+  const status = document.getElementById('syncStatus');
+
+  btn.classList.add('syncing');
+  btn.textContent = '⟳ Hämtar...';
+  dot.className = 'sync-dot loading';
+  status.textContent = 'Ansluter till Open Brain...';
+
+  try {
+    // Query Supabase thoughts table directly
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/thoughts?select=*&order=created_at.desc&limit=100`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON,
+          'Authorization': `Bearer ${SUPABASE_ANON}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const thoughts = await res.json();
+
+    // Filter CRM thoughts
+    const crmThoughts = thoughts.filter(t => {
+      const c = (t.content || t.text || '').toUpperCase();
+      return c.includes('PROFESSIONAL CRM') || c.includes('CRM —') || c.includes('CRM—');
+    });
+
+    if (crmThoughts.length === 0) {
+      dot.className = 'sync-dot ok';
+      status.textContent = `Inga CRM-tankar hittade i Open Brain · ${new Date().toLocaleTimeString('sv')}`;
+      btn.classList.remove('syncing');
+      btn.textContent = '⟳ Synka Open Brain';
+      showToast('Inga nya CRM-kontakter');
+      return;
+    }
+
+    // Parse and merge
+    const existing = getData();
+    let added = 0;
+
+    const parsed = crmThoughts.map(parseOBThought).filter(Boolean);
+
+    // Group by normalized name to deduplicate (same person, multiple OB thoughts)
+    const byName = {};
+    parsed.forEach(p => {
+      const key = p.name.trim().toLowerCase();
+      if (!byName[key]) byName[key] = [];
+      byName[key].push(p);
+    });
+
+    // Merge each group into one contact with obHistory
+    const mergedOB = Object.values(byName).map(group => {
+      const sorted = [...group].sort((a, b) => new Date(b.created) - new Date(a.created));
+      const base = { ...sorted[0] };
+      base.obHistory = sorted.map(t => ({ id: t.id, content: t.obContent, created: t.created }));
+      return base;
+    });
+
+    const merged = existing.filter(c => !c.fromOB); // keep manually added
+    mergedOB.forEach(p => { merged.push(p); added++; });
+
+    saveData(merged);
+    render();
+
+    dot.className = 'sync-dot ok';
+    status.textContent = `Synkad ${added} kontakter från Open Brain · ${new Date().toLocaleTimeString('sv')}`;
+    showToast(`${added} kontakter synkade ✓`);
+
+  } catch(e) {
+    console.error('Sync error:', e);
+    dot.className = 'sync-dot err';
+    status.textContent = `Fel vid synk: ${e.message}`;
+    showToast('Synk misslyckades — kontrollera anslutning');
+  }
+
+  btn.classList.remove('syncing');
+  btn.textContent = '⟳ Synka Open Brain';
+}
+
+// ── THEME ─────────────────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  const btn = document.getElementById('themeToggle');
+  btn.textContent = isLight ? '☾ Mörkt' : '☀ Ljust';
+  localStorage.setItem('davidCRM_theme', isLight ? 'light' : 'dark');
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('davidCRM_theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = '☾ Mörkt';
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function visible() {
+  const all = getData();
+  if (currentFilter === 'all') return all;
+  if (currentFilter === 'high') return all.filter(c => c.potential === 'high');
+  return all.filter(c => c.status === currentFilter);
+}
+
+function render() {
+  const all = getData();
+  const v = visible();
+
+  // Stats
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-item"><div class="stat-num">${all.length}</div><div class="stat-label">Totalt</div></div>
+    <div class="stat-item"><div class="stat-num" style="color:var(--active)">${all.filter(c=>c.status==='active').length}</div><div class="stat-label">Aktiva</div></div>
+    <div class="stat-item"><div class="stat-num" style="color:var(--warm)">${all.filter(c=>c.status==='warm').length}</div><div class="stat-label">Warm</div></div>
+    <div class="stat-item"><div class="stat-num" style="color:var(--accent2)">${all.filter(c=>c.status==='kontaktad').length}</div><div class="stat-label">Kontaktad</div></div>
+    <div class="stat-item"><div class="stat-num" style="color:var(--green)">${all.filter(c=>c.potential==='high').length}</div><div class="stat-label">Hög pot.</div></div>
+    <div class="stat-item"><div class="stat-num" style="color:var(--red)">${all.filter(c=>c.status==='stalled').length}</div><div class="stat-label">Stalled</div></div>
+  `;
+
+  if (currentView === 'kanban') renderKanban(v);
+  else renderList(v);
+}
+
+const COLS = [
+  {key:'cold',label:'Cold',color:'var(--cold)'},
+  {key:'warm',label:'Warm',color:'var(--warm)'},
+  {key:'kontaktad',label:'Kontaktad',color:'var(--accent2)'},
+  {key:'active',label:'Aktiv',color:'var(--active)'},
+  {key:'stalled',label:'Stalled',color:'var(--stalled)'}
+];
+
+function renderKanban(contacts) {
+  // Use 4 columns: cold, warm+kontaktad, active, stalled
+  const groups = {
+    cold: contacts.filter(c=>c.status==='cold'),
+    warm: contacts.filter(c=>c.status==='warm'||c.status==='kontaktad'),
+    active: contacts.filter(c=>c.status==='active'),
+    stalled: contacts.filter(c=>c.status==='stalled')
+  };
+  const colDefs = [
+    {key:'cold',label:'Cold',color:'var(--cold)'},
+    {key:'warm',label:'Warm / Kontaktad',color:'var(--warm)'},
+    {key:'active',label:'Aktiv',color:'var(--active)'},
+    {key:'stalled',label:'Stalled',color:'var(--stalled)'}
+  ];
+
+  document.getElementById('kanbanView').innerHTML = colDefs.map(col => {
+    const items = groups[col.key] || [];
+    return `<div class="kanban-col" ondragover="onDragOver(event,'${col.key}')" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${col.key}')">
+      <div class="kanban-header">
+        <span class="kanban-title" style="color:${col.color}">${col.label}</span>
+        <span class="kanban-count">${items.length}</span>
+      </div>
+      <div class="kanban-cards">
+        ${items.length ? items.map(cardHTML).join('') : '<div class="empty-col">Tom</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderList(contacts) {
+  document.getElementById('listView').innerHTML = contacts.length
+    ? contacts.map(rowHTML).join('')
+    : '<div style="text-align:center;padding:40px;font-family:\'DM Mono\',monospace;font-size:11px;color:var(--muted)">Inga kontakter</div>';
+}
+
+function cardHTML(c) {
+  const pb = c.potential==='high'?'high':c.potential==='medium'?'medium':'low';
+  const pl = c.potential==='high'?'↑ Hög':c.potential==='medium'?'→ Med':'↓ Låg';
+  const obBadge = c.fromOB ? '<span class="ob-source-badge">OB</span>' : '';
+  const overdue = isOverdue(c.nextActionBy);
+  const n = daysSince(c.lastContact);
+  const dateClass = n === null ? '' : n <= 7 ? 'fresh' : n <= 30 ? '' : 'stale';
+  const dateTxt = n !== null ? `<div class="card-date ${dateClass}">Kontaktad ${fmtDaysSince(n)}</div>` : '';
+  const overdueBadge = overdue ? `<span class="overdue-badge">⚠ Förfallen</span>` : '';
+  return `<div class="contact-card ${c.status}${overdue?' overdue':''}" data-id="${c.id}" draggable="true" ondragstart="onDragStart(event,'${c.id}')" ondragend="onDragEnd(event)" onclick="openDetail('${c.id}')">
+    <div class="card-name">${c.name} ${obBadge}</div>
+    <div class="card-company">${c.company || '—'}</div>
+    ${dateTxt}
+    ${c.offer ? `<div class="card-offer">${c.offer.slice(0,60)}${c.offer.length>60?'…':''}</div>` : ''}
+    <div class="card-footer">
+      <span class="potential-badge ${pb}">${pl}</span>
+      ${c.email ? `<a class="email-btn" href="https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(c.email)}&su=${encodeURIComponent('Hej '+c.name)}" target="_blank" onclick="event.stopPropagation()">✉ Gmail</a>` : (overdueBadge || (c.action ? `<span class="card-action">${c.action.slice(0,28)}${c.action.length>28?'…':''}</span>` : ''))}
+    </div>
+  </div>`;
+}
+
+function rowHTML(c) {
+  const overdue = isOverdue(c.nextActionBy);
+  const n = daysSince(c.lastContact);
+  const dateTxt = n !== null ? fmtDaysSince(n) : '—';
+  return `<div class="list-row ${c.status}${overdue?' overdue':''}" onclick="openDetail('${c.id}')">
+    <div class="row-name">${c.name}${c.fromOB?'<span class="ob-source-badge" style="margin-left:6px">OB</span>':''}${overdue?'<span class="overdue-badge" style="margin-left:6px">⚠</span>':''}</div>
+    <div class="row-company">${c.company||'—'}</div>
+    <div class="row-offer">${(c.offer||'').slice(0,50)}</div>
+    <span class="status-pill ${c.status}">${c.status}</span>
+    <div class="row-action" style="font-size:9px;color:var(--muted)">${dateTxt}</div>
+  </div>`;
+}
+
+// ── DETAIL ────────────────────────────────────────────────────
+function openDetail(id) {
+  detailId = id;
+  const c = getData().find(x => String(x.id) === String(id));
+  if (!c) return;
+
+  document.getElementById('detailName').textContent = c.name + (c.company ? ' — ' + c.company : '');
+  const src = document.getElementById('detailSource');
+  src.style.display = c.fromOB ? 'inline' : 'none';
+
+  const spClass = 'status-pill ' + c.status;
+  const pbClass = 'potential-badge ' + c.potential;
+  const pl = c.potential==='high'?'Hög potential':c.potential==='medium'?'Medium':'Låg';
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-section" style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="${spClass}">${c.status}</span>
+      <span class="${pbClass}">${pl}</span>
+    </div>
+    ${c.email?`<div class="detail-section"><div class="detail-label">E-post</div><div class="detail-value" style="display:flex;align-items:center;gap:10px">${c.email}<a class="email-btn" href="https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(c.email)}&su=${encodeURIComponent('Hej '+c.name)}" target="_blank">✉ Öppna Gmail</a></div></div>`:''}
+    ${c.relation?`<div class="detail-section"><div class="detail-label">Relation</div><div class="detail-value">${c.relation}</div></div>`:''}
+    ${c.offer?`<div class="detail-section"><div class="detail-label">Erbjudande</div><div class="detail-value">${c.offer}</div></div>`:''}
+    ${c.note?`<div class="detail-section"><div class="detail-label">Anteckningar</div><div class="detail-value">${c.fromOB&&c.obContent?c.note:c.note}</div></div>`:''}
+    ${c.lastContact?`<div class="detail-section"><div class="detail-label">Senaste kontakt</div><div class="detail-value">${c.lastContact} <span style="color:var(--muted);font-size:11px">(${fmtDaysSince(daysSince(c.lastContact))})</span></div></div>`:''}
+    ${c.action?`<div class="detail-section"><div class="detail-label">Nästa åtgärd${c.nextActionBy?` <span style="color:${isOverdue(c.nextActionBy)?'var(--red)':'var(--muted)'}">· Senast ${c.nextActionBy}${isOverdue(c.nextActionBy)?' ⚠':''}</span>`:''}</div><div class="detail-action">${c.action}</div></div>`:''}
+    ${c.blocker?`<div class="detail-section"><div class="detail-label">Blocker</div><div class="detail-blocker">${c.blocker}</div></div>`:''}
+    ${c.fromOB&&c.obHistory&&c.obHistory.length>1?`
+      <div class="ob-note">
+        <div class="ob-note-label">📡 Open Brain — ${c.obHistory.length} tankar</div>
+        ${c.obHistory.map((h,i)=>`
+          <div style="margin-top:${i?'10px':'4px'};padding-top:${i?'10px':'0'};${i?'border-top:1px solid var(--border)':''}">
+            <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">${new Date(h.created).toLocaleDateString('sv')}</div>
+            <div class="ob-note-text">${h.content.slice(0,300)}${h.content.length>300?'…':''}</div>
+          </div>`).join('')}
+      </div>`
+    : c.fromOB&&c.obContent?`<div class="ob-note"><div class="ob-note-label">📡 Från Open Brain</div><div class="ob-note-text">${c.obContent.slice(0,400)}${c.obContent.length>400?'…':''}</div></div>`:''}
+  `;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailModal').classList.remove('open');
+  detailId = null;
+}
+
+function editFromDetail() {
+  closeDetail();
+  openEditModal(detailId);
+}
+
+// ── ADD / EDIT ────────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'NY KONTAKT';
+  document.getElementById('deleteBtn').style.display = 'none';
+  ['name','company','offer','email','relation','note','action','blocker'].forEach(f => {
+    document.getElementById('f-'+f).value = '';
+  });
+  document.getElementById('f-status').value = 'warm';
+  document.getElementById('f-potential').value = 'high';
+  document.getElementById('addModal').classList.add('open');
+}
+
+function openEditModal(id) {
+  editingId = id;
+  const c = getData().find(x => String(x.id) === String(id));
+  if (!c) return;
+  document.getElementById('modalTitle').textContent = 'REDIGERA';
+  document.getElementById('deleteBtn').style.display = 'block';
+  document.getElementById('f-name').value = c.name||'';
+  document.getElementById('f-company').value = c.company||'';
+  document.getElementById('f-offer').value = c.offer||'';
+  document.getElementById('f-status').value = c.status||'warm';
+  document.getElementById('f-potential').value = c.potential||'high';
+  document.getElementById('f-relation').value = c.relation||'';
+  document.getElementById('f-note').value = c.note||'';
+  document.getElementById('f-email').value = c.email||'';
+  document.getElementById('f-action').value = c.action||'';
+  document.getElementById('f-blocker').value = c.blocker||'';
+  document.getElementById('f-lastContact').value = c.lastContact||'';
+  document.getElementById('f-nextActionBy').value = c.nextActionBy||'';
+  document.getElementById('addModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('addModal').classList.remove('open');
+  editingId = null;
+}
+
+function saveContact() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('Namn krävs'); return; }
+
+  const contact = {
+    id: editingId || Date.now(),
+    name,
+    company: document.getElementById('f-company').value.trim(),
+    offer: document.getElementById('f-offer').value.trim(),
+    status: document.getElementById('f-status').value,
+    potential: document.getElementById('f-potential').value,
+    relation: document.getElementById('f-relation').value.trim(),
+    note: document.getElementById('f-note').value.trim(),
+    action: document.getElementById('f-action').value.trim(),
+    email: document.getElementById('f-email').value.trim(),
+    blocker: document.getElementById('f-blocker').value.trim(),
+    lastContact: document.getElementById('f-lastContact').value || null,
+    nextActionBy: document.getElementById('f-nextActionBy').value || null,
+    fromOB: false,
+    created: editingId ? (getData().find(x=>String(x.id)===String(editingId))?.created||new Date().toISOString()) : new Date().toISOString()
+  };
+
+  const data = getData();
+  if (editingId) {
+    const idx = data.findIndex(x => String(x.id) === String(editingId));
+    if (idx >= 0) data[idx] = {...data[idx], ...contact};
+  } else {
+    data.push(contact);
+  }
+  saveData(data);
+  closeModal();
+  render();
+  showToast(editingId ? 'Uppdaterad ✓' : 'Kontakt tillagd ✓');
+}
+
+function deleteContact() {
+  if (!editingId) return;
+  if (!confirm('Ta bort kontakten?')) return;
+  saveData(getData().filter(x => String(x.id) !== String(editingId)));
+  closeModal();
+  render();
+  showToast('Borttagen');
+}
+
+// ── VIEW / FILTER ─────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btnKanban').classList.toggle('active', v==='kanban');
+  document.getElementById('btnList').classList.toggle('active', v==='list');
+  document.getElementById('kanbanView').classList.toggle('hidden', v!=='kanban');
+  document.getElementById('listView').classList.toggle('active', v==='list');
+  render();
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target===document.getElementById('addModal')) closeModal();
+});
+document.getElementById('detailModal').addEventListener('click', e => {
+  if (e.target===document.getElementById('detailModal')) closeDetail();
+});
+
+// ── INIT ──────────────────────────────────────────────────────
+initTheme();
+render();
+
+// Auto-sync on load if online
+if (navigator.onLine) {
+  setTimeout(() => syncFromOpenBrain(), 800);
+}
+</script>
+</body>
+</html>
