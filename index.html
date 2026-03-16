@@ -717,7 +717,7 @@ function openDetail(id) {
       <span class="${spClass}">${c.status}</span>
       <span class="${pbClass}">${pl}</span>
     </div>
-    ${c.email?`<div class="detail-section"><div class="detail-label">E-post</div><div class="detail-value" style="display:flex;align-items:center;gap:10px">${c.email}<a class="email-btn" href="https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(c.email)}&su=${encodeURIComponent('Hej '+c.name)}" target="_blank">✉ Öppna Gmail</a></div></div>`:''}
+    ${c.email?`<div class="detail-section"><div class="detail-label">E-post</div><div class="detail-value" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${c.email}<a class="email-btn" href="https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(c.email)}&su=${encodeURIComponent('Hej '+c.name)}" target="_blank">✉ Skriv mejl</a><a class="email-btn" href="https://mail.google.com/mail/#search/${encodeURIComponent('from:'+c.email+' OR to:'+c.email)}" target="_blank" style="border-color:var(--accent2);color:var(--accent2)">📥 Visa tråd</a></div></div>`:''}
     ${c.relation?`<div class="detail-section"><div class="detail-label">Relation</div><div class="detail-value">${c.relation}</div></div>`:''}
     ${c.offer?`<div class="detail-section"><div class="detail-label">Erbjudande</div><div class="detail-value">${c.offer}</div></div>`:''}
     ${c.note?`<div class="detail-section"><div class="detail-label">Anteckningar</div><div class="detail-value">${c.fromOB&&c.obContent?c.note:c.note}</div></div>`:''}
